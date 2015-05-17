@@ -1,7 +1,13 @@
 package de.uni.leipzig.constraintprogramming
 
+import java.io.{FileInputStream, InputStreamReader, BufferedReader, File}
+import java.util.Scanner
+
+import scala.collection.parallel.ParSet
 import scala.sys.process.Process
 import scala.sys.process.ProcessIO
+import scala.util.Random
+import scala.collection.{immutable, Set}
 
 trait SatSolverSupport {
   import Variable._
@@ -63,7 +69,26 @@ trait CnfLogicExpressionSupport {
   def clauses : CNF = convertToSatCnf(LogicEvaluator.cnf(e))
 }
 
+object DpllSolverSupport {
+  def fromDemacsFile(fileName : String) : CNF = {
+    val lines = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(fileName)))).useDelimiter("\n")
+    val header: String = lines.next()
+    var cnfList = scala.collection.mutable.Buffer[Clause]()
+    while(lines.hasNext){
+      val currentLine : String = lines.next()
+      val isBooleanLine: Boolean = !(currentLine.isEmpty || currentLine.startsWith("c"))
+      if(isBooleanLine){
+        val split: Array[String] = currentLine.split(" ")
+        val vars: immutable.Set[Variable] = split.take(split.size - 1).map(Variable(_)).toSet
+        cnfList += vars
+      }
+    }
+    cnfList.toSet
+  }
+}
+
 trait DpllSolverSupport extends SatSolver {
+
   override def solve = {
 
     val vars = getUniqueVars
@@ -75,17 +100,19 @@ trait DpllSolverSupport extends SatSolver {
       } yield allocVar).head
 
       def tryPropagate : Option[Clause] = {
-        val propagatable: Set[Clause] = clauses.filter(_.size == 1)
+        val propagatable: ParSet[Clause] = clauses.par.filter(_.size == 1)
         if(propagatable.isEmpty)
           None
         else {
-          val flatten: Set[Variable] = propagatable.flatten
+          val flatten: Set[Variable] = propagatable.flatten.seq
           Some(flatten)
         }
       }
 
+      val rand = new Random()
+
       def decide(v : Varname) : Clause = {
-        val startWith : Boolean = false
+        val startWith : Boolean = rand.nextBoolean()
         val result: Clause = applyRec(Set(Variable(v, startWith)))
         if(result.isEmpty){
           applyRec(Set(Variable(v, !startWith)))
@@ -96,13 +123,13 @@ trait DpllSolverSupport extends SatSolver {
 
       def applyAllocation(newAllocation : Clause) : CNF = {
         val varnames : Set[Varname] = newAllocation.map(_.varname)
-        clauses.filter(clause => {
+        clauses.par.filter(clause => {
           clause forall(!newAllocation.contains(_))
-        }).map(clause => clause.filterNot(v => varnames(v.varname)))
+        }).map(clause => clause.filterNot(v => varnames(v.varname))).seq
       }
 
       def isSat : Boolean = {
-        !clauses.exists(_.isEmpty)
+        !clauses.par.exists(_.isEmpty)
       }
 
       def applyRec(newAllocatedVars: Clause): Clause = {
@@ -112,7 +139,7 @@ trait DpllSolverSupport extends SatSolver {
       }
 
       clauses match {
-        case e : CNF if e.isEmpty => allocation
+        case e : CNF if e.isEmpty => vars.filterNot(allocation.map(_.varname).contains(_)).map(Variable(_, false)) ++ allocation
         case _ => {
           if(isSat){
             tryPropagate match {

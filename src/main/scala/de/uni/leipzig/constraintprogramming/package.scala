@@ -1,5 +1,6 @@
 package de.uni.leipzig
 
+import scala.collection.Set
 import scala.util.Try
 
 /**

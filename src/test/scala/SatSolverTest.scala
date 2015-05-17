@@ -16,11 +16,17 @@
 package de.uni.leipzig.constraintprogramming
 
 
+import java.io.File
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Paths}
+
 import de.uni.leipzig.constraintprogramming.Variable._
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.scalatest.Assertions
 import org.scalatest.junit.JUnitRunner
+
+import scala.collection
 
 trait Fixtures {
 
@@ -69,7 +75,7 @@ class SatSolverSuite extends Assertions with Fixtures {
   }
 
   @Test def convertLogicExpressionToSolvableCnf = {
-    import LogicEvaluator._
+    import de.uni.leipzig.constraintprogramming.LogicEvaluator._
     val testable = new CnfLogicExpressionSupport {
       override val e = cnf(Variable("a") <-->: Variable("b"))
     }
@@ -134,6 +140,7 @@ class MinisatSolverSpec extends FunSpec with Fixtures {
 @RunWith(classOf[JUnitRunner])
 class DpllSolverSpec extends FunSpec with Fixtures {
   describe("The dpll solver") {
+
     val testable: DpllSolverSupport = new DpllSolverSupport {
       override def clauses = (FIXTURE_ONEOF_THREE) + Set(Variable("1"))
     }
@@ -142,9 +149,16 @@ class DpllSolverSpec extends FunSpec with Fixtures {
       override def clauses = ((FIXTURE_ONEOF_THREE) + Set(Variable("1")) + Set(Variable("2")))
     }
 
-    val testable3: DpllSolverSupport = new DpllSolverSupport {
+    val oneOfN = 1000
 
-      override def clauses = this.equalOne((1 until 1000).map(_.toString).toSet)
+    def assertThereIsOneSolution(result: Clause) {
+      val t: collection.Set[Variable] = result.filter(_.value)
+      assert(1 === t.size)
+      assert(oneOfN === result.size)
+    }
+
+    val testable3: DpllSolverSupport = new DpllSolverSupport {
+      override def clauses = this.equalOne((0 until oneOfN).map(_.toString).toSet)
     }
 
     it("should give an complete solution") {
@@ -153,10 +167,36 @@ class DpllSolverSpec extends FunSpec with Fixtures {
 
     it("should give an unsat when not able to find an allocation") {
       assert(Set[Clause]() === testable2.solve)
+    }
+
+    it("should solve in reasonable time"){
+      //Files.write(Paths.get("dimacs_l_t_e_1000.txt"), testable3.convertToDimacsFormat.getBytes(StandardCharsets.UTF_8))
       println(testable3.clauses.size)
       val result: Clause = testable3.solve
-      println(result.filter(_.value))
+      assertThereIsOneSolution(result)
+    }
+
+    val testable4: DpllSolverSupport = new DpllSolverSupport {
+      override def clauses = DpllSolverSupport.fromDemacsFile("src/test/resources/dimacs_l_t_e_1000.txt")
+    }
+
+    it("should convert dimacs to cnf in memory properly"){
+      assertThereIsOneSolution(testable4.solve)
+    }
+
+    val testable5: DpllSolverSupport = new DpllSolverSupport {
+      override def clauses = DpllSolverSupport.fromDemacsFile("src/test/resources/sudoku.minisat")
+    }
+
+    val testable6 = new MinisatSolverSupport {
+      override def clauses = DpllSolverSupport.fromDemacsFile("src/test/resources/sudoku.minisat")
+    }
+
+    it("should solve sudokus"){
+      assert(testable5.solve.nonEmpty)
+      assert(testable6.solve.nonEmpty)
     }
 
   }
+
 }

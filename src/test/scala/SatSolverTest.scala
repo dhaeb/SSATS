@@ -16,17 +16,11 @@
 package de.uni.leipzig.constraintprogramming
 
 
-import java.io.File
-import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Paths}
-
 import de.uni.leipzig.constraintprogramming.Variable._
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.scalatest.Assertions
 import org.scalatest.junit.JUnitRunner
-
-import scala.collection
 
 trait Fixtures {
 
@@ -184,17 +178,29 @@ class DpllSolverSpec extends FunSpec with Fixtures {
       assertThereIsOneSolution(testable4.solve)
     }
 
+    val sudokuDimacs = DpllSolverSupport.fromDemacsFile("src/test/resources/sudoku.minisat")
+
     val testable5: DpllSolverSupport = new DpllSolverSupport {
-      override def clauses = DpllSolverSupport.fromDemacsFile("src/test/resources/sudoku.minisat")
+      override def clauses = sudokuDimacs
     }
 
     val testable6 = new MinisatSolverSupport {
-      override def clauses = DpllSolverSupport.fromDemacsFile("src/test/resources/sudoku.minisat")
+      override def clauses = sudokuDimacs
     }
 
     it("should solve sudokus"){
-      assert(testable5.solve.nonEmpty)
-      assert(testable6.solve.nonEmpty)
+      assert(testable5.solve.nonEmpty && testable6.solve.nonEmpty)
+    }
+
+    val testable7: DpllSolverSupport = new DpllSolverSupport {
+      override def clauses = {
+        val vars: Set[String] = (0 until oneOfN).map(_.toString).toSet
+        (this.equalOne(vars) + Set(Variable("2"))) + Set(Variable("3"))
+      }
+    }
+
+    it("should calculate unsat of a complex problem"){
+      assert(testable7.solve.isEmpty)
     }
 
   }

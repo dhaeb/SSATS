@@ -93,8 +93,6 @@ object Roessel extends DpllSolverSupport {
     colCnfs flatMap (i => i) toSet
   }
 
-  import Variable._
-
   def nightMoves: CNF = {
     val sets: IndexedSeq[CNF] = for {
       k <- 1 until 65

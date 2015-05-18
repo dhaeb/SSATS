@@ -7,7 +7,7 @@ import scala.collection.parallel.ParSet
 import scala.sys.process.Process
 import scala.sys.process.ProcessIO
 import scala.util.Random
-import scala.collection.{immutable, Set}
+import scala.collection.{GenSet, immutable, Set}
 
 trait SatSolverSupport {
   import Variable._
@@ -28,7 +28,7 @@ trait SatSolverSupport {
     exclusiveClauses
   }
 
-  def getUniqueVars: Set[Varname] = for {
+  def getUniqueVars: GenSet[Varname] = for {
     clause <- clauses
     v <- clause
   } yield v.varname
@@ -37,7 +37,7 @@ trait SatSolverSupport {
     def createHeading = {
       s"p cnf ${getUniqueVars.size} ${clauses.size}\n"
     }
-    val clausesAsDimacsStrings: Set[String] = for {
+    val clausesAsDimacsStrings: GenSet[String] = for {
       clause <- clauses
     } yield (clause mkString (" ")) + " 0"
     val clausesAsOneString: Any = clausesAsDimacsStrings mkString("\n")
@@ -93,68 +93,70 @@ trait DpllSolverSupport extends SatSolver {
 
     val vars = getUniqueVars
 
+    val rand = new Random()
+
+    //type CNF = ParSet[Clause]
+    //type Clause = ParSet[Variable]
+
     def dpll(clauses : CNF, allocation : Clause) : Clause = {
 
-      def getNextVar : Varname = (for {
-        allocVar <- vars if ! allocation.map(_.varname).contains(allocVar)
-      } yield allocVar).head
+        def getNextVar : Varname = (for {
+          allocVar <- vars if ! allocation.map(_.varname).contains(allocVar)
+        } yield allocVar).head
 
-      def tryPropagate : Option[Clause] = {
-        val propagatable: ParSet[Clause] = clauses.par.filter(_.size == 1)
-        if(propagatable.isEmpty)
-          None
-        else {
-          val flatten: Set[Variable] = propagatable.flatten.seq
-          Some(flatten)
+        def tryPropagate : Option[Clause] = {
+          val propagatable = clauses.filter(_.size == 1)
+          if(propagatable.isEmpty)
+            None
+          else {
+            val flatten = propagatable.flatten
+            Some(flatten)
+          }
         }
-      }
 
-      val rand = new Random()
-
-      def decide(v : Varname) : Clause = {
-        val startWith : Boolean = rand.nextBoolean()
-        val result: Clause = applyRec(Set(Variable(v, startWith)))
-        if(result.isEmpty){
-          applyRec(Set(Variable(v, !startWith)))
-        } else {
-          result
+        def decide(v : Varname) : Clause = {
+          val startWith : Boolean = rand.nextBoolean()
+          val result: Clause = applyRecWhenSat(Set(Variable(v, startWith)))
+          if(result.isEmpty){
+            applyRecWhenSat(Set(Variable(v, !startWith)))
+          } else {
+            result
+          }
         }
-      }
 
-      def applyAllocation(newAllocation : Clause) : CNF = {
-        val varnames : Set[Varname] = newAllocation.map(_.varname)
-        clauses.par.filter(clause => {
-          clause forall(!newAllocation.contains(_))
-        }).map(clause => clause.filterNot(v => varnames(v.varname))).seq
-      }
+        def applyAllocation(newAllocation : Clause) : CNF = {
+          val varnames : GenSet[Varname] = newAllocation.map(_.varname)
+          clauses.filter(clause => {
+            clause forall(!newAllocation.contains(_))
+          }).map(clause => clause.filterNot(v => varnames(v.varname)))
+        }
 
-      def isSat : Boolean = {
-        !clauses.par.exists(_.isEmpty)
-      }
+        def isSat : Boolean = {
+          !clauses.exists(_.isEmpty)
+        }
 
-      def applyRec(newAllocatedVars: Clause): Clause = {
-        val newAllocation = newAllocatedVars ++ allocation
-        val newCnf: CNF = applyAllocation(newAllocation)
-        dpll(newCnf, newAllocation)
-      }
-
-      clauses match {
-        case e : CNF if e.isEmpty => vars.filterNot(allocation.map(_.varname).contains(_)).map(Variable(_, false)) ++ allocation
-        case _ => {
+        def applyRecWhenSat(newAllocatedVars: Clause): Clause = {
+          val newAllocation = newAllocatedVars ++ allocation
+          val newCnf: CNF = applyAllocation(newAllocation)
           if(isSat){
-            tryPropagate match {
-              case None => decide(getNextVar)
-              case Some(newAllocatedVars) => applyRec(newAllocatedVars)
-            }
+            dpll(newCnf, newAllocation)
           } else {
             Set()
           }
         }
 
-      }
+        clauses match {
+          case e : CNF if e.isEmpty => vars.filterNot(allocation.map(_.varname).contains(_)).map(Variable(_, false)) ++ allocation
+          case _ => {
+            tryPropagate match {
+              case None => decide(getNextVar)
+              case Some(newAllocatedVars) => applyRecWhenSat(newAllocatedVars)
+            }
+          }
+        }
 
     }
-    dpll(clauses, Set())
+    dpll(clauses.par, Set())
   }
 }
 

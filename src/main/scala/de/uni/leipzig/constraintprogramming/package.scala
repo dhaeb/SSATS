@@ -1,6 +1,6 @@
 package de.uni.leipzig
 
-import scala.collection.Set
+import scala.collection.{GenSet, Set}
 import scala.util.Try
 
 /**
@@ -56,8 +56,8 @@ package object constraintprogramming {
     override def toString = if(value) varname else s"-${varname}"
   }
 
-  type Clause = Set[Variable]
-  type CNF = Set[Clause]
+  type Clause = GenSet[Variable]
+  type CNF = GenSet[Clause]
   type Varname = String
 
   object Variable {

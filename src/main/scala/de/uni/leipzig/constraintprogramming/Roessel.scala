@@ -109,8 +109,9 @@ object Roessel extends DpllSolverSupport {
   override val clauses = rows ++ columns ++ nightMoves
 
   def main(args: Array[String]) {
+    val result: Seq[Variable] = solve.seq.toSeq.sorted
     for {
-      vars <- solve.toSeq.sorted if vars.value
+      vars <- result if vars.value
     } {
       val pos: ChessBoardPos = ChessBoardPos(Integer.parseInt(vars.varname))
       println(s"${pos} => ${pos.getRoesselMoves() map (m => (m, m.toInt))}")

@@ -22,6 +22,8 @@ import org.junit.runner.RunWith
 import org.scalatest.Assertions
 import org.scalatest.junit.JUnitRunner
 
+import scala.collection.GenSet
+
 trait Fixtures {
 
   val THREE_VARS: Set[String] = Set("1", "2", "3")
@@ -146,7 +148,7 @@ class DpllSolverSpec extends FunSpec with Fixtures {
     val oneOfN = 1000
 
     def assertThereIsOneSolution(result: Clause) {
-      val t: collection.Set[Variable] = result.filter(_.value)
+      val t: GenSet[Variable] = result.filter(_.value)
       assert(1 === t.size)
       assert(oneOfN === result.size)
     }

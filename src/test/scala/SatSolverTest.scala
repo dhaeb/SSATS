@@ -16,6 +16,8 @@
 package de.uni.leipzig.constraintprogramming
 
 
+import java.io.File
+
 import de.uni.leipzig.constraintprogramming.Variable._
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,6 +27,12 @@ import org.scalatest.junit.JUnitRunner
 import scala.collection.GenSet
 
 trait Fixtures {
+
+  val sudokuDimacs = DpllSolverSupport.fromDemacsFile("src/test/resources/sudoku.minisat")
+
+  val minisatSudoku = new MinisatSolverSupport {
+    override def clauses = sudokuDimacs
+  }
 
   val THREE_VARS: Set[String] = Set("1", "2", "3")
 
@@ -129,6 +137,22 @@ class MinisatSolverSpec extends FunSpec with Fixtures {
       assert(Set[Clause]() === testable.solve)
     }
 
+    it("should calculate all solutions") {
+      var startClauses = 9028
+      val countSolutions = 3
+      val solverFactory: (CNF) => MinisatSolverSupport = (cnf) => new MinisatSolverSupport {
+        assert(cnf.size === startClauses)
+        startClauses += 1
+        override def clauses: CNF = cnf
+      }
+      val solutions: List[Clause] = SatSolver.calculateSolutions(solverFactory, countSolutions)(minisatSudoku)
+      assert(3 === solutions.toSet.size )
+      for(sol <- solutions){
+        assert(sol.size === 729)
+        assert(sol.filter(_.value).size === 81)
+      }
+    }
+
   }
 }
 
@@ -180,18 +204,14 @@ class DpllSolverSpec extends FunSpec with Fixtures {
       assertThereIsOneSolution(testable4.solve)
     }
 
-    val sudokuDimacs = DpllSolverSupport.fromDemacsFile("src/test/resources/sudoku.minisat")
-
     val testable5: DpllSolverSupport = new DpllSolverSupport {
       override def clauses = sudokuDimacs
     }
 
-    val testable6 = new MinisatSolverSupport {
-      override def clauses = sudokuDimacs
-    }
-
     it("should solve sudokus"){
-      assert(testable5.solve.nonEmpty && testable6.solve.nonEmpty)
+      val ownDpllSolution: Clause = testable5.solve
+      val minisatSolution: Clause = minisatSudoku.solve
+      assert(ownDpllSolution.nonEmpty && minisatSolution.nonEmpty)
     }
 
     val testable7: DpllSolverSupport = new DpllSolverSupport {

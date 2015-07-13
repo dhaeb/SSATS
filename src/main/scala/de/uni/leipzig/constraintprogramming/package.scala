@@ -53,12 +53,16 @@ package object constraintprogramming {
   }
 
   case class Variable(varname : Varname, value : Boolean) extends LogicExpression {
+    def flip : Variable = Variable(varname, !value)
+
     override def toString = if(value) varname else s"-${varname}"
   }
 
+  def negateClause(currentResult: Clause): Clause = currentResult.map(_.flip)
+
+  type Varname = String
   type Clause = GenSet[Variable]
   type CNF = GenSet[Clause]
-  type Varname = String
 
   object Variable {
     def ALL_TRUE(varnames : Set[Varname]) : Clause = varnames map (Variable(_, true))

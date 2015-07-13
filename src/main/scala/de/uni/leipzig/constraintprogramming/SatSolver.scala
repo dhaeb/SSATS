@@ -9,6 +9,11 @@ import scala.sys.process.ProcessIO
 import scala.util.Random
 import scala.collection.{GenSet, immutable, Set}
 
+/**
+ *  Simple support functions to create a CNF to model problems.
+ *  The #clauses field is the central data structure which should be overriden to model a problem and use the solver.
+ *  Use #convertToDimacsFormat to create a cnf which a solver like Minisat is able to understand.
+ */
 trait SatSolverSupport {
   import Variable._
 
@@ -46,6 +51,25 @@ trait SatSolverSupport {
 
 }
 
+object SatSolver {
+
+  def calculateSolutions[T <: SatSolver](f : CNF => T, maxResults : Int = -1)(solver : T, result : List[Clause] = List()) : List[Clause] = {
+    val currentResult: Clause = solver.solve
+    val isSat: Boolean = !currentResult.isEmpty
+    if(isSat){
+      val newCnf: CNF = solver.clauses + negateClause(currentResult)
+      val newSolver = f(newCnf)
+      if(maxResults == result.size){
+        result
+      } else {
+        calculateSolutions(f, maxResults)(newSolver, currentResult :: result)
+      }
+    } else {
+      result
+    }
+  }
+}
+
 trait SatSolver extends SatSolverSupport {
   /**
    * Used to solve a cnf (denoted by the clauses field) and get a valid allocation if it exists.
@@ -53,6 +77,7 @@ trait SatSolver extends SatSolverSupport {
    * @return A Set of variables when SAT or an empty clause if UNSAT
    */
   def solve : Clause
+
 }
 
 trait CnfLogicExpressionSupport {
@@ -166,6 +191,7 @@ object MinisatSolverSupport {
       Integer.compare(Integer.parseInt(var1.varname), Integer.parseInt(var2.varname))
     }
   }
+
 }
 
 trait MinisatSolverSupport extends SatSolver {
